@@ -13,14 +13,16 @@ $(basename "$0"): [-h|--help] [APP] [... APP]
 Tool to initialize and maintain TKLDev.
 
 Relevant git repos are downloaded/updated (see below), bootstrap is downloaded
-if needed and the latest 'fab' package will be installed when relevant.
+if needed (or built locally if not available for download) and the latest
+'fab' package will be installed when relevant.
 
 Options:
     APP [APP ...]   Appliance name/s - defaults if unset: 'core'
     -f|--force      Attempt checkout of default branch (see below) if alternate
                     branch checked out; dirty repos still skipped
     -n|--full-clone Full clone (rather than default shallow clone)*
-    -s|--strict     Fail rather than skip non-fatal steps
+    -s|--strict     Fail rather than skip non-fatal steps (including a missing
+                    bootstrap download, rather than building it locally)
     -t|--transition Transition build - no fail on missing bootstrap download**
     -h|--help       Show this help and exit
 
@@ -297,34 +299,49 @@ apt-get update -qq
 info "Installing newer fab version (if available)"
 DEBIAN_FRONTEND=noninteractive apt-get install -y fab
 
+build_bootstrap() {
+    local src
+    src="$(dirname "$FAB_PATH")/bootstrap"
+    clone_or_update bootstrap "$src" master
+    info "Building $BOOTSTRAP_NAME locally (from $src)"
+    make -C "$src" clean
+    make -C "$src" install \
+        FAB_PATH="$FAB_PATH" RELEASE="$RELEASE" FAB_ARCH="$FAB_ARCH"
+    if [[ ! -f "$BOOTSTRAP_PATH/bin/bash" ]]; then
+        fatal "Local build of $BOOTSTRAP_NAME did not create $BOOTSTRAP_PATH"
+    fi
+}
+
 if [[ -d "$BOOTSTRAP_PATH" ]]; then
     if [[ ! -f "$BOOTSTRAP_PATH/bin/bash" ]]; then
         fatal "$BOOTSTRAP_PATH exists, but does not appear to be a bootstrap"
     fi
     info "$BOOTSTRAP_PATH exists, skipping download."
 else
-    if [[ -n $TRANSITION ]]; then
-        fail() { warning "Failed download: $* - skipping due to transition"; }
-    else
-        fail() { fatal "Failed download: $*"; }
-    fi
     info "Downloading $BOOTSTRAP_NAME"
     mkdir -p "$(dirname "$BOOTSTRAP_PATH")"
     cd "$(dirname "$BOOTSTRAP_PATH")"
     bootstrap_tar="$BOOTSTRAP_NAME.tar.gz"
-    wget -nc -nv "$IMAGES/bootstrap/$bootstrap_tar" \
-        || fail "$bootstrap_tar"
-    wget -nc -nv "$IMAGES/bootstrap/$bootstrap_tar.hash" \
-        || fail "$bootstrap_tar.hash"
-    if [[ -f "$BT_VERIFY" ]]; then
-        bootstrap_tar_path="$(dirname "$BOOTSTRAP_PATH")/$bootstrap_tar"
-        BT_DEBUG=$DEBUG $BT_VERIFY \
-            --force-gpg "$bootstrap_tar_path" "$bootstrap_tar_path.hash"
+    if wget -nc -nv "$IMAGES/bootstrap/$bootstrap_tar" \
+            && wget -nc -nv "$IMAGES/bootstrap/$bootstrap_tar.hash"; then
+        if [[ -f "$BT_VERIFY" ]]; then
+            bootstrap_tar_path="$(dirname "$BOOTSTRAP_PATH")/$bootstrap_tar"
+            BT_DEBUG=$DEBUG $BT_VERIFY \
+                --force-gpg "$bootstrap_tar_path" "$bootstrap_tar_path.hash"
+        else
+            fatal "$BT_VERIFY script not found, unable to verify downloaded files."
+        fi
+        info "Unpacking $BOOTSTRAP_NAME"
+        mkdir "$BOOTSTRAP_PATH"
+        tar -zxf "$BOOTSTRAP_NAME.tar.gz" -C "$BOOTSTRAP_PATH"
+    elif [[ -n $TRANSITION ]]; then
+        warning "Failed download: $bootstrap_tar - skipping due to transition"
+    elif [[ -n $STRICT ]]; then
+        fatal "Failed download: $bootstrap_tar"
     else
-        fatal "$BT_VERIFY script not found, unable to verify downloaded files."
+        warning "Failed download: $bootstrap_tar - building it locally instead"
+        rm -f "$bootstrap_tar" "$bootstrap_tar.hash"
+        build_bootstrap
     fi
-    info "Unpacking $BOOTSTRAP_NAME"
-    mkdir "$BOOTSTRAP_PATH"
-    tar -zxf "$BOOTSTRAP_NAME.tar.gz" -C "$BOOTSTRAP_PATH"
 fi
 info "$(basename "$0") complete."
