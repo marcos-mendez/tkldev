@@ -1,0 +1,3 @@
+#!/bin/bash
+# Stand-in for apt-get: records the call only.
+echo "apt-get $*" >> "${STUB_LOG:?}"

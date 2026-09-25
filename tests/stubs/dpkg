@@ -1,0 +1,4 @@
+#!/bin/bash
+# Stand-in for dpkg --print-architecture: STUB_ARCH sets the answer.
+echo "dpkg $*" >> "${STUB_LOG:?}"
+echo "${STUB_ARCH:-amd64}"
