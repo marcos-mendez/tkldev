@@ -35,7 +35,7 @@ branches will be skipped. Default git repos, branches and local paths are:
 remote repo                     branch      local path
 ------------------------------------------------------
 turnkeylinux/buildtasks         <ver>.x     $BT_PATH
-turnkeylinux/tklbam-profiles    master      /turnkey/tklbam-profiles
+turnkeylinux/tklbam-profiles    master      $TKLBAM_PATH
 turnkeylinux/cdroots            <ver>.x     $FAB_PATH/cdroots (amd64 only)
 turnkeylinux/common             <ver>.x     $FAB_PATH/common
 turnkeylinux-apps/APP           master      $FAB_PATH/products/APP
@@ -45,6 +45,7 @@ Env vars:
     FAB_PATH        Fab PATH (default: $FAB_PATH)
     FAB_ARCH        Fab architecture (default: $FAB_ARCH)
     BT_PATH         Buildtasks PATH (default: $BT_PATH)
+    TKLBAM_PATH     tklbam-profiles PATH (default: $TKLBAM_PATH)
     RELEASE         Release to target - e.g. debian/bookworm (default: $RELEASE)
     ARCH            Arch to target (default: $ARCH)
     BRANCH          Preferred series ref (default: $BRANCH)
@@ -281,6 +282,7 @@ FAB_PATH="${FAB_PATH:-/turnkey/fab}"
 BOOTSTRAP_NAME="bootstrap-${CODENAME}-${FAB_ARCH}"
 BOOTSTRAP_PATH="$FAB_PATH/bootstraps/${CODENAME}-${FAB_ARCH}"
 BT_PATH="${BT_PATH:-/turnkey/buildtasks}"
+TKLBAM_PATH="${TKLBAM_PATH:-/turnkey/tklbam-profiles}"
 BT_VERIFY="$BT_PATH/bin/signature-verify"
 
 read -ra BT_REFS <<< "${BT_REFS:-$BRANCH ${BRANCH}-dev master}"
@@ -328,7 +330,7 @@ done
 [[ -n "${APPS[*]}" ]] || APPS=(core)
 
 clone_or_update buildtasks "$BT_PATH" "${BT_REFS[@]}"
-clone_or_update tklbam-profiles /turnkey/tklbam-profiles "${TKLBAM_REFS[@]}"
+clone_or_update tklbam-profiles "$TKLBAM_PATH" "${TKLBAM_REFS[@]}"
 clone_or_update common "$FAB_PATH/common" "${COMMON_REFS[@]}"
 for app in "${APPS[@]}"; do
     clone_or_update _APP_ "$app" "$FAB_PATH/products/$app" "${APP_REFS[@]}"
