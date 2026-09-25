@@ -64,50 +64,6 @@ EOF
     exit $exit_code
 }
 
-# check for BT_DEBUG as well as bt scripts call tkldev-setup
-if [[ -n "$DEBUG" ]] || [[ -n "$BT_DEBUG" ]]; then
-    set -x
-fi
-[[ $(id -u) -eq 0 ]] || fatal "Root user required."
-
-GIT_DEPTH=${GIT_DEPTH:-1}
-
-distro="$(lsb_release -si)"
-if [[ "${distro,,}" == "turnkey" ]] || [[ "${distro,,}" == "debian" ]]; then
-   distro="debian"
-fi
-tkl_ver=$(turnkey-version -t)
-unset FORCE STRICT TRANSITION
-
-export RELEASE="${RELEASE:-${distro}/$(lsb_release -s -c)}"
-CODENAME="$(basename "$RELEASE")"
-export CODENAME
-export FAB_ARCH="${FAB_ARCH:-$(dpkg --print-architecture)}"
-export BRANCH="${tkl_ver::2}.x"
-IMAGES="http://mirror.turnkeylinux.org/turnkeylinux/images"
-FAB_PATH="${FAB_PATH:-/turnkey/fab}"
-BOOTSTRAP_NAME="bootstrap-${CODENAME}-${FAB_ARCH}"
-BOOTSTRAP_PATH="$FAB_PATH/bootstraps/${CODENAME}-${FAB_ARCH}"
-BT_PATH="${BT_PATH:-/turnkey/buildtasks}"
-BT_VERIFY="$BT_PATH/bin/signature-verify"
-
-read -ra BT_REFS <<< "${BT_REFS:-$BRANCH ${BRANCH}-dev master}"
-read -ra TKLBAM_REFS <<< "${TKLBAM_REFS:-$BRANCH ${BRANCH}-dev master}"
-read -ra COMMON_REFS <<< "${COMMON_REFS:-$BRANCH ${BRANCH}-dev master}"
-read -ra APP_REFS <<< "${APP_REFS:-$BRANCH ${BRANCH}-dev master}"
-read -ra CDROOTS_REFS <<< "${CDROOTS_REFS:-$BRANCH ${BRANCH}-dev master}"
-
-GIT_REMOTE_URL="${GIT_REMOTE_URL:-https://github.com/turnkeylinux}"
-GIT_REMOTE_NAME="${GIT_REMOTE_NAME:-origin}"
-
-# remove trailing '/' if needed
-GIT_REMOTE_URL="${GIT_REMOTE_URL%/}"
-# Append '-apps' to git remote URL for apps if default org is 'turnkeylinux'
-APP_GIT_REMOTE_URL="$GIT_REMOTE_URL"
-if [[ "$GIT_REMOTE_URL" =~ [:/]turnkeylinux ]]; then
-    APP_GIT_REMOTE_URL="$GIT_REMOTE_URL-apps"
-fi
-
 tkl_remote() {
     local dir=$1
     local git_remote
@@ -246,6 +202,104 @@ clone_or_update() {
     fi
 }
 
+build_bootstrap() {
+    local src
+    src="$(dirname "$FAB_PATH")/bootstrap"
+    clone_or_update bootstrap "$src" master
+    info "Building $BOOTSTRAP_NAME locally (from $src)"
+    make -C "$src" clean
+    make -C "$src" install \
+        FAB_PATH="$FAB_PATH" RELEASE="$RELEASE" FAB_ARCH="$FAB_ARCH"
+    if [[ ! -f "$BOOTSTRAP_PATH/bin/bash" ]]; then
+        fatal "Local build of $BOOTSTRAP_NAME did not create $BOOTSTRAP_PATH"
+    fi
+}
+
+setup_bootstrap() {
+    if [[ -d "$BOOTSTRAP_PATH" ]]; then
+        if [[ ! -f "$BOOTSTRAP_PATH/bin/bash" ]]; then
+            fatal "$BOOTSTRAP_PATH exists, but does not appear to be a bootstrap"
+        fi
+        info "$BOOTSTRAP_PATH exists, skipping download."
+    else
+        info "Downloading $BOOTSTRAP_NAME"
+        mkdir -p "$(dirname "$BOOTSTRAP_PATH")"
+        cd "$(dirname "$BOOTSTRAP_PATH")"
+        bootstrap_tar="$BOOTSTRAP_NAME.tar.gz"
+        if wget -nc -nv "$IMAGES/bootstrap/$bootstrap_tar" \
+                && wget -nc -nv "$IMAGES/bootstrap/$bootstrap_tar.hash"; then
+            if [[ -f "$BT_VERIFY" ]]; then
+                bootstrap_tar_path="$(dirname "$BOOTSTRAP_PATH")/$bootstrap_tar"
+                BT_DEBUG=$DEBUG $BT_VERIFY \
+                    --force-gpg "$bootstrap_tar_path" "$bootstrap_tar_path.hash"
+            else
+                fatal "$BT_VERIFY script not found, unable to verify downloaded files."
+            fi
+            info "Unpacking $BOOTSTRAP_NAME"
+            mkdir "$BOOTSTRAP_PATH"
+            tar -zxf "$BOOTSTRAP_NAME.tar.gz" -C "$BOOTSTRAP_PATH"
+        elif [[ -n $TRANSITION ]]; then
+            warning "Failed download: $bootstrap_tar - skipping due to transition"
+        elif [[ -n $STRICT ]]; then
+            fatal "Failed download: $bootstrap_tar"
+        else
+            warning "Failed download: $bootstrap_tar - building it locally instead"
+            rm -f "$bootstrap_tar" "$bootstrap_tar.hash"
+            build_bootstrap
+        fi
+    fi
+}
+
+# When sourced (as the tests do) stop here: the functions above are defined
+# and nothing below runs.
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+    return 0
+fi
+
+# check for BT_DEBUG as well as bt scripts call tkldev-setup
+if [[ -n "$DEBUG" ]] || [[ -n "$BT_DEBUG" ]]; then
+    set -x
+fi
+[[ $(id -u) -eq 0 ]] || fatal "Root user required."
+
+GIT_DEPTH=${GIT_DEPTH:-1}
+
+distro="$(lsb_release -si)"
+if [[ "${distro,,}" == "turnkey" ]] || [[ "${distro,,}" == "debian" ]]; then
+   distro="debian"
+fi
+tkl_ver=$(turnkey-version -t)
+unset FORCE STRICT TRANSITION
+
+export RELEASE="${RELEASE:-${distro}/$(lsb_release -s -c)}"
+CODENAME="$(basename "$RELEASE")"
+export CODENAME
+export FAB_ARCH="${FAB_ARCH:-$(dpkg --print-architecture)}"
+export BRANCH="${tkl_ver::2}.x"
+IMAGES="http://mirror.turnkeylinux.org/turnkeylinux/images"
+FAB_PATH="${FAB_PATH:-/turnkey/fab}"
+BOOTSTRAP_NAME="bootstrap-${CODENAME}-${FAB_ARCH}"
+BOOTSTRAP_PATH="$FAB_PATH/bootstraps/${CODENAME}-${FAB_ARCH}"
+BT_PATH="${BT_PATH:-/turnkey/buildtasks}"
+BT_VERIFY="$BT_PATH/bin/signature-verify"
+
+read -ra BT_REFS <<< "${BT_REFS:-$BRANCH ${BRANCH}-dev master}"
+read -ra TKLBAM_REFS <<< "${TKLBAM_REFS:-$BRANCH ${BRANCH}-dev master}"
+read -ra COMMON_REFS <<< "${COMMON_REFS:-$BRANCH ${BRANCH}-dev master}"
+read -ra APP_REFS <<< "${APP_REFS:-$BRANCH ${BRANCH}-dev master}"
+read -ra CDROOTS_REFS <<< "${CDROOTS_REFS:-$BRANCH ${BRANCH}-dev master}"
+
+GIT_REMOTE_URL="${GIT_REMOTE_URL:-https://github.com/turnkeylinux}"
+GIT_REMOTE_NAME="${GIT_REMOTE_NAME:-origin}"
+
+# remove trailing '/' if needed
+GIT_REMOTE_URL="${GIT_REMOTE_URL%/}"
+# Append '-apps' to git remote URL for apps if default org is 'turnkeylinux'
+APP_GIT_REMOTE_URL="$GIT_REMOTE_URL"
+if [[ "$GIT_REMOTE_URL" =~ [:/]turnkeylinux ]]; then
+    APP_GIT_REMOTE_URL="$GIT_REMOTE_URL-apps"
+fi
+
 APPS=()
 while [[ "$#" -gt 0 ]]; do
     case $1 in
@@ -298,54 +352,6 @@ info "Updating apt database"
 apt-get update -qq
 info "Installing newer fab version (if available)"
 DEBIAN_FRONTEND=noninteractive apt-get install -y fab
-
-build_bootstrap() {
-    local src
-    src="$(dirname "$FAB_PATH")/bootstrap"
-    clone_or_update bootstrap "$src" master
-    info "Building $BOOTSTRAP_NAME locally (from $src)"
-    make -C "$src" clean
-    make -C "$src" install \
-        FAB_PATH="$FAB_PATH" RELEASE="$RELEASE" FAB_ARCH="$FAB_ARCH"
-    if [[ ! -f "$BOOTSTRAP_PATH/bin/bash" ]]; then
-        fatal "Local build of $BOOTSTRAP_NAME did not create $BOOTSTRAP_PATH"
-    fi
-}
-
-setup_bootstrap() {
-    if [[ -d "$BOOTSTRAP_PATH" ]]; then
-        if [[ ! -f "$BOOTSTRAP_PATH/bin/bash" ]]; then
-            fatal "$BOOTSTRAP_PATH exists, but does not appear to be a bootstrap"
-        fi
-        info "$BOOTSTRAP_PATH exists, skipping download."
-    else
-        info "Downloading $BOOTSTRAP_NAME"
-        mkdir -p "$(dirname "$BOOTSTRAP_PATH")"
-        cd "$(dirname "$BOOTSTRAP_PATH")"
-        bootstrap_tar="$BOOTSTRAP_NAME.tar.gz"
-        if wget -nc -nv "$IMAGES/bootstrap/$bootstrap_tar" \
-                && wget -nc -nv "$IMAGES/bootstrap/$bootstrap_tar.hash"; then
-            if [[ -f "$BT_VERIFY" ]]; then
-                bootstrap_tar_path="$(dirname "$BOOTSTRAP_PATH")/$bootstrap_tar"
-                BT_DEBUG=$DEBUG $BT_VERIFY \
-                    --force-gpg "$bootstrap_tar_path" "$bootstrap_tar_path.hash"
-            else
-                fatal "$BT_VERIFY script not found, unable to verify downloaded files."
-            fi
-            info "Unpacking $BOOTSTRAP_NAME"
-            mkdir "$BOOTSTRAP_PATH"
-            tar -zxf "$BOOTSTRAP_NAME.tar.gz" -C "$BOOTSTRAP_PATH"
-        elif [[ -n $TRANSITION ]]; then
-            warning "Failed download: $bootstrap_tar - skipping due to transition"
-        elif [[ -n $STRICT ]]; then
-            fatal "Failed download: $bootstrap_tar"
-        else
-            warning "Failed download: $bootstrap_tar - building it locally instead"
-            rm -f "$bootstrap_tar" "$bootstrap_tar.hash"
-            build_bootstrap
-        fi
-    fi
-}
 
 setup_bootstrap
 info "$(basename "$0") complete."
