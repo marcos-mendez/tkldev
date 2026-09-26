@@ -1,0 +1,4 @@
+#!/bin/bash
+# Stand-in for turnkey-version: STUB_TKL_VERSION sets the answer.
+echo "turnkey-version $*" >> "${STUB_LOG:?}"
+echo "${STUB_TKL_VERSION:-19.0}"

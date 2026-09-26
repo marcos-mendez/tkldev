@@ -1,0 +1,41 @@
+#!/bin/bash
+# Stand-in for git used by the tests: records the call in STUB_LOG and
+# answers from STUB_* variables instead of touching any repository.
+#   STUB_REFS        refs that "exist" on the remote (ls-remote)
+#   STUB_GIT_STATUS  output of "git status -s" (empty = clean)
+#   STUB_GIT_BRANCH  output of "git branch --show-current"
+#   STUB_GIT_FAIL    subcommands that fail: fetch pull clone checkout, or
+#                    checkout:<branch> to fail one branch only
+echo "git $*" >> "${STUB_LOG:?}"
+if [[ $1 == -C ]]; then
+    shift 2
+fi
+sub=$1
+shift
+fails=" ${STUB_GIT_FAIL:-} "
+case $sub in
+    ls-remote)
+        ref="${*: -1}"
+        [[ " ${STUB_REFS:-} " == *" $ref "* ]]
+        ;;
+    remote)
+        printf '%s\t%s (fetch)\n' origin https://github.com/turnkeylinux/repo.git
+        printf '%s\t%s (push)\n' origin https://github.com/turnkeylinux/repo.git
+        ;;
+    status)
+        [[ -z ${STUB_GIT_STATUS:-} ]] || echo "$STUB_GIT_STATUS"
+        ;;
+    branch)
+        echo "${STUB_GIT_BRANCH:-19.x}"
+        ;;
+    checkout)
+        [[ $fails != *" checkout "* && $fails != *" checkout:$1 "* ]]
+        ;;
+    clone)
+        [[ $fails != *" clone "* ]] || exit 128
+        mkdir -p "${*: -1}/.git"
+        ;;
+    fetch|pull)
+        [[ $fails != *" $sub "* ]]
+        ;;
+esac

@@ -1,0 +1,4 @@
+#!/bin/bash
+# Stand-in for id -u: STUB_UID sets the answer (default root).
+echo "id $*" >> "${STUB_LOG:?}"
+echo "${STUB_UID:-0}"

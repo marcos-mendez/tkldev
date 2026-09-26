@@ -1,0 +1,19 @@
+#!/bin/bash
+# Stand-in for make: records the call and, on "install", creates the
+# bootstrap where the FAB_PATH/RELEASE/FAB_ARCH arguments point, unless
+# STUB_MAKE_NO_BOOTSTRAP is set.
+echo "make $*" >> "${STUB_LOG:?}"
+fab_path= release= arch= install=
+for arg in "$@"; do
+    case $arg in
+        FAB_PATH=*) fab_path="${arg#*=}" ;;
+        RELEASE=*) release="${arg#*=}" ;;
+        FAB_ARCH=*) arch="${arg#*=}" ;;
+        install) install=y ;;
+    esac
+done
+if [[ -n $install && -z ${STUB_MAKE_NO_BOOTSTRAP:-} ]]; then
+    dst="$fab_path/bootstraps/$(basename "$release")-$arch"
+    mkdir -p "$dst/bin"
+    echo '#!/bin/sh' > "$dst/bin/bash"
+fi

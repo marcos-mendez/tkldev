@@ -1,0 +1,7 @@
+#!/bin/bash
+# Stand-in for lsb_release: STUB_DISTRO and STUB_CODENAME set the answers.
+echo "lsb_release $*" >> "${STUB_LOG:?}"
+case " $* " in
+    *" -si "*) echo "${STUB_DISTRO:-TurnKey}" ;;
+    *" -c "*) echo "${STUB_CODENAME:-trixie}" ;;
+esac

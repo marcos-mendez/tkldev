@@ -1,0 +1,19 @@
+#!/bin/bash
+# Stand-in for wget: records the call and creates the requested file in the
+# current directory (a real tarball with bin/bash for *.tar.gz).
+#   STUB_WGET_FAIL   "all" fails every download, "hash" only the *.hash one
+echo "wget $*" >> "${STUB_LOG:?}"
+url="${*: -1}"
+name="$(basename "$url")"
+fails=" ${STUB_WGET_FAIL:-} "
+[[ $fails != *" all "* ]] || exit 8
+if [[ $name == *.hash ]]; then
+    [[ $fails != *" hash "* ]] || exit 8
+    echo "stub hash for $name" > "$name"
+    exit 0
+fi
+work="$(mktemp -d)"
+mkdir -p "$work/bin"
+echo '#!/bin/sh' > "$work/bin/bash"
+tar -C "$work" -zcf "$name" bin
+rm -rf "$work"

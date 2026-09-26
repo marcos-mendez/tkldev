@@ -1,0 +1,5 @@
+#!/bin/bash
+# Stand-in for buildtasks/bin/signature-verify: STUB_VERIFY_RC is its exit
+# code. The test installs it under BT_PATH/bin.
+echo "signature-verify $*" >> "${STUB_LOG:?}"
+exit "${STUB_VERIFY_RC:-0}"
