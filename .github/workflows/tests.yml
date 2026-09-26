@@ -1,0 +1,13 @@
+# Coverage gate for tkldev. Threshold 0: nothing is measured on master
+# (COVERAGE.md). tests/coverage.sh and the bats suite arrive with
+# fix/build-missing-bootstrap; raise the threshold when it merges.
+name: tests
+on:
+  pull_request:
+  push:
+    branches: [master]
+jobs:
+  tests:
+    uses: keel-linux/.github/.github/workflows/test-shell.yml@main
+    with:
+      threshold: 0
