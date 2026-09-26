@@ -56,7 +56,9 @@ Env vars:
     CDROOTS_REFS    Candidate refs for turnkeylinux/cdroots
     GIT_DEPTH       Depth to clone (default: $GIT_DEPTH) - setting to 'full'
                     gives same behavior as -n|--full-clone
-    GIT_REMOTE_URL  Remote URL to clone/update from
+    GIT_REMOTE_URL  Remote URL to clone/update from. On the keel-linux
+                    organization appliance APP is cloned from keel-APP
+                    (core from keel-core) into $FAB_PATH/products/APP
                     (default: 'https://github.com/turnkeylinux')
     GIT_REMOTE_NAME Remote name (default: 'origin')
     DEBUG           Verbose output (useful for debugging)
@@ -156,6 +158,19 @@ update_repo() {
         else
             fatal "$err_msg"
         fi
+    fi
+}
+
+# app_repo_name APP REMOTE_URL: name of the repository holding appliance APP
+# on REMOTE_URL. On the keel-linux organization appliances carry the keel-
+# prefix (core is keel-core); anywhere else the name is used as is.
+app_repo_name() {
+    local app=$1
+    local remote=$2
+    if [[ "$remote" =~ [:/][Kk]eel-[Ll]inux(/|$) ]] && [[ "$app" != keel-* ]]; then
+        echo "keel-$app"
+    else
+        echo "$app"
     fi
 }
 
@@ -333,7 +348,8 @@ clone_or_update buildtasks "$BT_PATH" "${BT_REFS[@]}"
 clone_or_update tklbam-profiles "$TKLBAM_PATH" "${TKLBAM_REFS[@]}"
 clone_or_update common "$FAB_PATH/common" "${COMMON_REFS[@]}"
 for app in "${APPS[@]}"; do
-    clone_or_update _APP_ "$app" "$FAB_PATH/products/$app" "${APP_REFS[@]}"
+    clone_or_update _APP_ "$(app_repo_name "$app" "$APP_GIT_REMOTE_URL")" \
+        "$FAB_PATH/products/$app" "${APP_REFS[@]}"
 done
 
 if [[ "${FAB_ARCH}" == "amd64" ]]; then
