@@ -4,7 +4,15 @@ Measured on 2026-09-24 against upstream master (6b42342), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).
 
-## Baseline: 0 percent, nothing measured
+## Measured baseline on the default branch: 99 percent (2026-09-26)
+
+Pull request #1 merged on 2026-09-26 (merge commit 994ecf4) and brought
+`tests/coverage.sh` with it: tkldev-setup 185 of 186 lines under kcov, 99.46 percent, 63 bats. The gate in
+`.github/workflows/tests.yml` is set to 99, the measured number rounded
+down, and is only ever raised. The sections that follow record the state
+before the merge.
+
+## Baseline before the merge: 0 percent, nothing measured
 
 This repository has no test suite and no coverage tool wired up. The figure
 below is therefore not an estimate: nothing is measured. Line counts are
