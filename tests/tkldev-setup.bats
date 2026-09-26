@@ -273,6 +273,35 @@ output_has() {
     not_logged "mirror-apps"
 }
 
+@test "on the keel-linux organization an appliance is cloned from keel-APP" {
+    export GIT_REMOTE_URL="https://github.com/keel-linux"
+    run_setup
+    [ "$status" -eq 0 ]
+    logged "https://github.com/keel-linux/keel-core.git $FAB_PATH/products/core"
+    logged "https://github.com/keel-linux/common.git $FAB_PATH/common"
+    not_logged "keel-linux-apps"
+    not_logged "keel-common"
+    not_logged "products/keel-core"
+}
+
+@test "an SSH remote of the organization maps the appliance names too" {
+    export GIT_REMOTE_URL="git@github.com:Keel-Linux/"
+    run_setup wordpress keel-lamp
+    [ "$status" -eq 0 ]
+    logged "git@github.com:Keel-Linux/keel-wordpress.git $FAB_PATH/products/wordpress"
+    logged "git@github.com:Keel-Linux/keel-lamp.git $FAB_PATH/products/keel-lamp"
+    not_logged "keel-keel-lamp"
+}
+
+@test "app_repo_name keeps the name on any other remote" {
+    call app_repo_name core "https://github.com/turnkeylinux-apps"
+    [ "$output" = core ]
+    call app_repo_name core "https://[2001:db8::1]/mirror"
+    [ "$output" = core ]
+    call app_repo_name core "https://[2001:db8::1]/keel-linux"
+    [ "$output" = keel-core ]
+}
+
 @test "apt is updated and fab installed" {
     run_setup
     [ "$status" -eq 0 ]
